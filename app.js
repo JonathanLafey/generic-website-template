@@ -51,16 +51,36 @@ app.use(i18n.init);
  * Middleware to be invoked before each action
  */
 app.use(function(req, res, next) {
-    // set locale on the same given the url
-    var rxLocal = /^\/(en|es)/i;
-    if(rxLocal.test(req.url)){
-        var arr = rxLocal.exec(req.url);
-        var local=arr[1];
-        // i18n.setLocale(local);
-		req.setLocale(local);
+    // set correct locale based on the url parameter (subdirectory method)
+    var rxLocale = /^\/(\w\w)/i;
+    // test the regular expression to find if the url contains a language
+    // if not fallback to the default language
+    if(rxLocale.test(req.url)){
+        var language = rxLocale.exec(req.url)[1];
+        // check if the given language exists on the configured locales,
+        // otherwise fallback to default
+        if (i18n.getLocales().indexOf(language) >= 0) {
+            // handlebars don't seem to work with i18n locale so set only request locale
+            req.setLocale(language);
+            // also set language on locals to be publicly accessible on all templates
+            res.locals.language = language;
+        }
+        else {
+            // else set the default locale to global language variable
+            // NOTE: i18n.getLocale() should always return the default locale as we are not overriding it anywhere
+            res.locals.language = i18n.getLocale();
+        }
     }
-    // no need to set default, as it's being set from i18n.configure
-    // move to the next route
+    else {
+        // else set the default locale to global language variable
+        // NOTE: i18n.getLocale() should always return the default locale as we are not overriding it anywhere
+        res.locals.language = i18n.getLocale();
+    }
+    // remove the language from the url as its been processed already and isn't needed on the controller
+    // also catch only valid languages and return 404 for the rest
+    // we also check if the route was containing only the language, so we add a trailing slash to avoid empty route string
+    req.url = (req.url.replace(rxLocale, "") == "" ? "/" : req.url.replace(rxLocale, ""));
+    // move to the route
     next();
 });
 
